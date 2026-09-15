@@ -1,0 +1,21 @@
+REST APIs allow clients and servers to communicate using HTTP.
+
+Common HTTP methods include GET, POST, PUT, PATCH, and DELETE.
+
+GET is commonly used to retrieve existing resources.
+
+POST is commonly used to create new resources.
+
+PUT is commonly used to replace or update a resource.
+
+PATCH is commonly used to partially update a resource.
+
+DELETE is commonly used to remove a resource.
+
+HTTP status codes communicate the result of an API request.
+
+Examples include 200 for a successful request, 201 for successful resource creation, 400 for a bad request, 401 for unauthorized access, 403 for forbidden access, 404 for a resource that was not found, and 500 for an unexpected server error.
+
+REST APIs should validate input data, return consistent response formats, and provide meaningful error messages.
+
+API authentication can be implemented using methods such as JWT tokens.

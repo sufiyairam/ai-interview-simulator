@@ -1,0 +1,19 @@
+Python is a high-level programming language commonly used for web development, automation, data science, and artificial intelligence.
+
+Python functions are defined using the def keyword.
+
+Python supports object-oriented programming using classes and objects.
+
+Exception handling in Python commonly uses try, except, finally, and raise.
+
+Logging can be used to record application events and errors for debugging.
+
+Python supports synchronous and asynchronous programming.
+
+Asynchronous functions are defined using async def, and await is used to wait for asynchronous operations.
+
+Python applications can use virtual environments to isolate project dependencies.
+
+Common debugging techniques include reading tracebacks, using logging, print statements when appropriate, and debugging tools such as pdb or the VS Code debugger.
+
+Python applications should validate input data and handle exceptions appropriately to improve reliability.

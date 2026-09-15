@@ -1,0 +1,21 @@
+FastAPI is a modern Python web framework used to build APIs.
+
+FastAPI supports creating REST API endpoints using decorators such as @app.get and @app.post.
+
+GET requests are commonly used to retrieve data, while POST requests are commonly used to send data and create resources.
+
+FastAPI supports dependency injection using Depends.
+
+A common use of Depends is providing a database session to multiple endpoints.
+
+FastAPI can use Pydantic models for request validation and response validation.
+
+HTTPException can be used to return appropriate HTTP error responses.
+
+Common HTTP status codes include 200 for success, 201 for resource creation, 400 for bad requests, 401 for unauthorized access, 403 for forbidden access, 404 for resources that are not found, and 500 for unexpected server errors.
+
+FastAPI can use asynchronous endpoints defined using async def.
+
+Asynchronous programming is useful when an application spends time waiting for I/O operations such as API calls or database operations.
+
+CORS configuration allows a frontend running on one origin to communicate with a backend running on another origin.

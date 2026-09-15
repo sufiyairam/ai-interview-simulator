@@ -1,0 +1,21 @@
+PostgreSQL is a relational database management system used to store and manage structured data.
+
+A relational database stores data in tables consisting of rows and columns.
+
+SQL is used to create, retrieve, update, and delete data in relational databases.
+
+Common SQL operations include SELECT, INSERT, UPDATE, and DELETE.
+
+Indexes can improve the performance of database queries.
+
+Primary keys uniquely identify records in a table.
+
+Foreign keys create relationships between tables.
+
+SQLAlchemy is an ORM that allows Python applications to interact with relational databases using Python objects and queries.
+
+Database sessions manage communication between an application and the database.
+
+Database connections should be closed properly after operations are completed.
+
+Applications should handle database exceptions and avoid exposing sensitive database error information to users.
