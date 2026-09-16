@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import chromadb
-from sentence_transformers import SentenceTransformer
+
 
 
 # Project root directory
@@ -16,10 +16,8 @@ CHROMA_DB_DIR = BASE_DIR / "chroma_db"
 
 class RAGService:
     def __init__(self):
-        # Load the embedding model
-        self.embedding_model = SentenceTransformer(
-            "all-MiniLM-L6-v2"
-        )
+        # The embedding model will be loaded only when needed
+        self.embedding_model = None
 
         # Create a persistent ChromaDB client
         self.client = chromadb.PersistentClient(
@@ -30,6 +28,19 @@ class RAGService:
         self.collection = self.client.get_or_create_collection(
             name="interview_knowledge"
         )
+
+    def get_embedding_model(self):
+        """
+        Load the embedding model only when it is first needed.
+        """
+        if self.embedding_model is None:
+            from sentence_transformers import SentenceTransformer
+
+        self.embedding_model = SentenceTransformer(
+            "all-MiniLM-L6-v2"
+        )
+
+        return self.embedding_model
 
     def load_knowledge_base(self):
         """
@@ -73,7 +84,7 @@ class RAGService:
         # Only add documents if files were found
         if documents:
 
-            embeddings = self.embedding_model.encode(
+            embeddings = self.get_embedding_model().encode(
                 documents
             ).tolist()
 
@@ -97,7 +108,7 @@ class RAGService:
         the most relevant information.
         """
 
-        query_embedding = self.embedding_model.encode(
+        query_embedding = self.get_embedding_model().encode(
             query
         ).tolist()
 
