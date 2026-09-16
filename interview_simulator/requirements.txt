@@ -13,3 +13,4 @@ openai==1.51.2
 python-multipart==0.0.12
 langchain-groq
 chromadb
+sentence-transformers
