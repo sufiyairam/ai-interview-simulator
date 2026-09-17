@@ -1,7 +1,6 @@
+from collections import Counter
 from pathlib import Path
-
-import chromadb
-
+import re
 
 
 # Project root directory
@@ -10,47 +9,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # Folder containing our knowledge files
 KNOWLEDGE_BASE_DIR = BASE_DIR / "knowledge_base"
 
-# Folder where ChromaDB will store vector data
-CHROMA_DB_DIR = BASE_DIR / "chroma_db"
-
 
 class RAGService:
     def __init__(self):
-        # The embedding model will be loaded only when needed
-        self.embedding_model = None
+        # Store knowledge-base chunks in memory.
+        # This is much lighter than loading Sentence Transformers + ChromaDB.
+        self.documents = []
+        self._loaded = False
 
-        # Create a persistent ChromaDB client
-        self.client = chromadb.PersistentClient(
-            path=str(CHROMA_DB_DIR)
-        )
-
-        # Get or create our collection
-        self.collection = self.client.get_or_create_collection(
-            name="interview_knowledge"
-        )
-
-    def get_embedding_model(self):
+    def _tokenize(self, text: str) -> list[str]:
         """
-        Load the embedding model only when it is first needed.
+        Convert text into simple lowercase word tokens.
         """
-        if self.embedding_model is None:
-            from sentence_transformers import SentenceTransformer
+        return re.findall(r"\b[a-zA-Z0-9_+#.-]+\b", text.lower())
 
-        self.embedding_model = SentenceTransformer(
-            "all-MiniLM-L6-v2"
-        )
-
-        return self.embedding_model
-
-    def load_knowledge_base(self):
+    def load_knowledge_base(self) -> int:
         """
         Read all .txt files from the knowledge_base folder
-        and store them in ChromaDB.
+        and store their text chunks in memory.
         """
 
         documents = []
-        ids = []
-        metadatas = []
 
         for file_path in KNOWLEDGE_BASE_DIR.glob("*.txt"):
 
@@ -68,33 +47,19 @@ class RAGService:
 
             for index, chunk in enumerate(chunks):
 
-                document_id = (
-                    f"{file_path.stem}_{index}"
-                )
-
-                documents.append(chunk)
-                ids.append(document_id)
-
-                metadatas.append(
+                documents.append(
                     {
-                        "source": file_path.name
+                        "id": f"{file_path.stem}_{index}",
+                        "text": chunk,
+                        "source": file_path.name,
+                        "tokens": Counter(
+                            self._tokenize(chunk)
+                        ),
                     }
                 )
 
-        # Only add documents if files were found
-        if documents:
-
-            embeddings = self.get_embedding_model().encode(
-                documents
-            ).tolist()
-
-            # Store documents and embeddings
-            self.collection.upsert(
-                documents=documents,
-                embeddings=embeddings,
-                ids=ids,
-                metadatas=metadatas,
-            )
+        self.documents = documents
+        self._loaded = True
 
         return len(documents)
 
@@ -104,25 +69,66 @@ class RAGService:
         n_results: int = 3,
     ) -> str:
         """
-        Search the knowledge base and return
-        the most relevant information.
+        Retrieve the most relevant knowledge-base chunks
+        using lightweight keyword matching.
         """
 
-        query_embedding = self.get_embedding_model().encode(
-            query
-        ).tolist()
+        # Load the knowledge base the first time it is needed.
+        if not self._loaded:
+            self.load_knowledge_base()
 
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-        )
-
-        documents = results.get("documents", [[]])
-
-        if not documents or not documents[0]:
+        if not self.documents:
             return ""
 
-        return "\n\n".join(documents[0])
+        query_tokens = Counter(
+            self._tokenize(query)
+        )
+
+        if not query_tokens:
+            return ""
+
+        scored_documents = []
+
+        for document in self.documents:
+
+            score = 0.0
+
+            for token, query_count in query_tokens.items():
+
+                document_count = document["tokens"].get(
+                    token,
+                    0,
+                )
+
+                if document_count > 0:
+                    score += query_count * document_count
+
+            if score > 0:
+                scored_documents.append(
+                    (
+                        score,
+                        document,
+                    )
+                )
+
+        # Sort from most relevant to least relevant.
+        scored_documents.sort(
+            key=lambda item: item[0],
+            reverse=True,
+        )
+
+        selected_documents = [
+            document
+            for _, document in scored_documents[:n_results]
+        ]
+
+        if not selected_documents:
+            return ""
+
+        return "\n\n".join(
+            document["text"]
+            for document in selected_documents
+        )
 
 
 # Create one reusable RAG service instance
