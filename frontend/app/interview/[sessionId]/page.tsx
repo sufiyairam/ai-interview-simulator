@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 
@@ -31,19 +31,80 @@ type AnswerResponse = {
   feedback: string;
 };
 
+/*
+ * Browser Speech Recognition types
+ * These types help TypeScript understand the browser's
+ * Speech Recognition API.
+ */
+type SpeechRecognitionAlternativeLike = {
+  transcript: string;
+};
+
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionAlternativeLike;
+};
+
+type SpeechRecognitionEventLike = Event & {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+
+  onresult:
+    | ((event: SpeechRecognitionEventLike) => void)
+    | null;
+
+  onerror:
+    | ((event: { error: string }) => void)
+    | null;
+
+  onend: (() => void) | null;
+
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type WindowWithSpeechRecognition = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
+
 export default function InterviewPage() {
   const params = useParams();
   const router = useRouter();
 
   const sessionId = params.sessionId as string;
 
-  const [session, setSession] = useState<InterviewSession | null>(null);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [session, setSession] =
+    useState<InterviewSession | null>(null);
+
+  const [currentQuestionIndex, setCurrentQuestionIndex] =
+    useState(0);
+
   const [answer, setAnswer] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Voice interview state
+  const [isListening, setIsListening] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState("");
+
+  // Keep the browser speech-recognition object
+  // between React renders.
+  const recognitionRef =
+    useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     async function loadInterview() {
@@ -58,13 +119,17 @@ export default function InterviewPage() {
         setSession(data);
 
         // Find the first question that has not been answered.
-        const firstUnansweredIndex = data.questions.findIndex(
-          (question) => !question.answer
-        );
+        const firstUnansweredIndex =
+          data.questions.findIndex(
+            (question) => !question.answer
+          );
 
         // If every question has already been answered,
         // take the user directly to the results page.
-        if (firstUnansweredIndex === -1 && data.questions.length > 0) {
+        if (
+          firstUnansweredIndex === -1 &&
+          data.questions.length > 0
+        ) {
           router.replace(`/results/${sessionId}`);
           return;
         }
@@ -74,7 +139,10 @@ export default function InterviewPage() {
           setCurrentQuestionIndex(firstUnansweredIndex);
         }
       } catch (err) {
-        console.error("Failed to load interview:", err);
+        console.error(
+          "Failed to load interview:",
+          err
+        );
 
         setError(
           err instanceof Error
@@ -91,13 +159,154 @@ export default function InterviewPage() {
     }
   }, [sessionId, router]);
 
+  /*
+   * Start browser speech recognition.
+   */
+  function startVoiceInput() {
+    setError("");
+
+    const speechWindow =
+      window as WindowWithSpeechRecognition;
+
+    const SpeechRecognitionAPI =
+      speechWindow.SpeechRecognition ??
+      speechWindow.webkitSpeechRecognition;
+
+    if (!SpeechRecognitionAPI) {
+      setError(
+        "Voice input is not supported in this browser. Please use Chrome or Edge."
+      );
+      return;
+    }
+
+    // Reuse an existing recognition object when possible.
+    if (!recognitionRef.current) {
+      const recognition = new SpeechRecognitionAPI();
+
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onresult = (
+        event: SpeechRecognitionEventLike
+      ) => {
+        let finalText = "";
+        let interimText = "";
+
+        for (
+          let i = event.resultIndex;
+          i < event.results.length;
+          i++
+        ) {
+          const transcript =
+            event.results[i][0].transcript;
+
+          if (event.results[i].isFinal) {
+            finalText += transcript;
+          } else {
+            interimText += transcript;
+          }
+        }
+
+        // Add completed speech to the answer.
+        if (finalText.trim()) {
+          setAnswer((previousAnswer) => {
+            const separator =
+              previousAnswer.trim() ? " " : "";
+
+            return (
+              previousAnswer +
+              separator +
+              finalText.trim()
+            );
+          });
+        }
+
+        // Show speech that is still being recognized.
+        setInterimTranscript(
+          interimText.trim()
+        );
+      };
+
+      recognition.onerror = (event) => {
+        console.error(
+          "Speech recognition error:",
+          event.error
+        );
+
+        setIsListening(false);
+        setInterimTranscript("");
+
+        if (event.error === "not-allowed") {
+          setError(
+            "Microphone permission was denied. Please allow microphone access and try again."
+          );
+        } else {
+          setError(
+            `Voice input error: ${event.error}`
+          );
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setInterimTranscript("");
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+    } catch (err) {
+      console.error(
+        "Failed to start speech recognition:",
+        err
+      );
+
+      setError(
+        "Could not start voice input. Please try again."
+      );
+    }
+  }
+
+  /*
+   * Stop browser speech recognition.
+   */
+  function stopVoiceInput() {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+
+    setIsListening(false);
+    setInterimTranscript("");
+  }
+
+  /*
+   * Stop speech recognition when leaving the page.
+   */
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
   async function handleSubmitAnswer() {
     if (!session) return;
 
-    const currentQuestion = session.questions[currentQuestionIndex];
+    // Stop microphone before submitting.
+    stopVoiceInput();
+
+    const currentQuestion =
+      session.questions[currentQuestionIndex];
 
     if (!answer.trim()) {
-      setError("Please enter your answer before continuing.");
+      setError(
+        "Please enter or speak your answer before continuing."
+      );
       return;
     }
 
@@ -105,19 +314,25 @@ export default function InterviewPage() {
       setSubmitting(true);
       setError("");
 
-      const result = await apiRequest<AnswerResponse>("/answers", {
-        method: "POST",
-        body: JSON.stringify({
-          question_id: currentQuestion.id,
-          transcript: answer,
-        }),
-      });
+      const result =
+        await apiRequest<AnswerResponse>("/answers", {
+          method: "POST",
+          body: JSON.stringify({
+            question_id: currentQuestion.id,
+            transcript: answer,
+          }),
+        });
 
-      console.log("Answer submitted successfully:", result);
+      console.log(
+        "Answer submitted successfully:",
+        result
+      );
 
       // Update the current question locally so that
       // the answer is marked as completed immediately.
-      const updatedQuestions = [...session.questions];
+      const updatedQuestions = [
+        ...session.questions,
+      ];
 
       updatedQuestions[currentQuestionIndex] = {
         ...currentQuestion,
@@ -136,28 +351,38 @@ export default function InterviewPage() {
       });
 
       // Find the next unanswered question.
-      const nextUnansweredIndex = updatedQuestions.findIndex(
-        (question, index) =>
-          index > currentQuestionIndex && !question.answer
-      );
+      const nextUnansweredIndex =
+        updatedQuestions.findIndex(
+          (question, index) =>
+            index > currentQuestionIndex &&
+            !question.answer
+        );
 
-      // If there is another unanswered question, move to it.
+      // If there is another unanswered question,
+      // move to it.
       if (nextUnansweredIndex !== -1) {
-        setCurrentQuestionIndex(nextUnansweredIndex);
+        setCurrentQuestionIndex(
+          nextUnansweredIndex
+        );
         setAnswer("");
+        setInterimTranscript("");
         return;
       }
 
-      // Check whether every question is now answered.
-      const allQuestionsAnswered = updatedQuestions.every(
-        (question) => question.answer
-      );
+      // Check whether every question is answered.
+      const allQuestionsAnswered =
+        updatedQuestions.every(
+          (question) => question.answer
+        );
 
       if (allQuestionsAnswered) {
         router.push(`/results/${sessionId}`);
       }
     } catch (err) {
-      console.error("Failed to submit answer:", err);
+      console.error(
+        "Failed to submit answer:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -193,7 +418,9 @@ export default function InterviewPage() {
             Something went wrong
           </h1>
 
-          <p className="mt-4 text-gray-600">{error}</p>
+          <p className="mt-4 text-gray-600">
+            {error}
+          </p>
 
           <button
             onClick={() => router.push("/interview")}
@@ -206,7 +433,10 @@ export default function InterviewPage() {
     );
   }
 
-  if (!session || session.questions.length === 0) {
+  if (
+    !session ||
+    session.questions.length === 0
+  ) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
         <div className="rounded-2xl bg-white p-8 text-center shadow-md">
@@ -215,21 +445,26 @@ export default function InterviewPage() {
           </h1>
 
           <p className="mt-3 text-gray-600">
-            This interview session does not contain any questions.
+            This interview session does not contain
+            any questions.
           </p>
         </div>
       </main>
     );
   }
 
-  const currentQuestion = session.questions[currentQuestionIndex];
+  const currentQuestion =
+    session.questions[currentQuestionIndex];
 
-  const answeredQuestions = session.questions.filter(
-    (question) => question.answer
-  ).length;
+  const answeredQuestions =
+    session.questions.filter(
+      (question) => question.answer
+    ).length;
 
   const progress =
-    ((answeredQuestions + 1) / session.questions.length) * 100;
+    ((answeredQuestions + 1) /
+      session.questions.length) *
+    100;
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -247,7 +482,8 @@ export default function InterviewPage() {
             </h1>
 
             <p className="mt-3 text-gray-600">
-              Answer each question as you would in a real interview.
+              Answer each question as you would in a
+              real interview.
             </p>
           </div>
 
@@ -303,17 +539,68 @@ export default function InterviewPage() {
             </label>
 
             <p className="mt-1 text-sm text-gray-500">
-              Take your time and answer as you would in a real interview.
+              Type your answer or use the microphone
+              to speak.
             </p>
+
+            {/* Voice button */}
+
+            <div className="mt-4 flex flex-wrap gap-3">
+              {!isListening ? (
+                <button
+                  type="button"
+                  onClick={startVoiceInput}
+                  disabled={submitting}
+                  className="rounded-xl border border-blue-600 px-5 py-3 font-semibold text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  🎤 Start Speaking
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={stopVoiceInput}
+                  disabled={submitting}
+                  className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  ⏹ Stop Speaking
+                </button>
+              )}
+            </div>
+
+            {/* Listening indicator */}
+
+            {isListening && (
+              <div className="mt-4 rounded-xl bg-blue-50 p-4 text-sm text-blue-700">
+                🎙️ Listening... Speak naturally.
+              </div>
+            )}
+
+            {/* Text answer */}
 
             <textarea
               value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="Type your answer here..."
+              onChange={(e) =>
+                setAnswer(e.target.value)
+              }
+              placeholder="Type your answer here, or click 'Start Speaking'..."
               rows={10}
               disabled={submitting}
               className="mt-4 w-full resize-none rounded-xl border border-gray-300 px-5 py-4 text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
             />
+
+            {/* Interim speech */}
+
+            {interimTranscript && (
+              <div className="mt-3 rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                  Listening
+                </p>
+
+                <p className="mt-1 text-sm italic text-blue-800">
+                  {interimTranscript}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Error */}
@@ -328,14 +615,17 @@ export default function InterviewPage() {
 
           <button
             onClick={handleSubmitAnswer}
-            disabled={submitting}
+            disabled={submitting || isListening}
             className="mt-6 w-full rounded-xl bg-blue-600 py-4 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting
               ? "Analyzing Your Answer..."
-              : currentQuestionIndex === session.questions.length - 1
-                ? "Finish Interview 🎉"
-                : "Submit & Next Question →"}
+              : isListening
+                ? "Stop speaking to continue"
+                : currentQuestionIndex ===
+                    session.questions.length - 1
+                  ? "Finish Interview 🎉"
+                  : "Submit & Next Question →"}
           </button>
         </div>
       </div>
