@@ -22,9 +22,10 @@ app = FastAPI(title="AI Virtual Interview Simulator")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-    "http://localhost:3000",
+   "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://ai-interview-simulator-rose-theta.vercel.app",
+    "https://ai-interview-simulator-bi56glrmv-sufiya-s-projects.vercel.app",
 ],
     allow_credentials=True,
     allow_methods=["*"],
