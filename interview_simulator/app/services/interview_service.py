@@ -10,11 +10,20 @@ from app.services.rag_service import rag_service
 
 QUESTION_GEN_SYSTEM_PROMPT = """You are a senior technical interviewer.
 
-Given a job description and relevant technical knowledge from a knowledge base,
-generate {num_questions} interview questions that probe the candidate's real
-alignment with the role.
+Given a job description, the candidate's resume, and relevant technical
+knowledge from a knowledge base, generate {num_questions} interview questions
+that probe the candidate's real alignment with the role.
 
 Use the job description as the primary source for understanding the role.
+
+Use the candidate's resume to personalize the questions based on their:
+- Technical skills
+- Projects
+- Education
+- Experience
+- Tools and technologies
+
+Do not invent anything that is not present in the resume.
 
 Use the retrieved knowledge only when it is relevant to create technically
 accurate and grounded questions.
@@ -23,9 +32,10 @@ Include a balanced mix of:
 - Technical questions
 - Problem-solving questions
 - Behavioral questions
+- Resume-based questions
 - Role-specific questions
 
-Vary the difficulty appropriately.
+Vary the difficulty appropriately for a junior or entry-level candidate.
 
 Return ONLY a JSON array of objects.
 Do not include explanations, prose, markdown, or code fences.
@@ -37,7 +47,8 @@ Use exactly this format:
 ]
 
 skill_tag should be a short 1-3 word label such as:
-"python", "debugging", "rest api", "communication", or "problem solving".
+"python", "debugging", "rest api", "communication", "project",
+or "problem solving".
 """
 
 
@@ -153,11 +164,14 @@ def _extract_json_object(text: str) -> str:
 
 def generate_interview_questions(
     job_description_text: str,
+    resume_text: str,
     num_questions: int = 5,
 ) -> list[dict]:
     """
-    Generates interview questions using both the job description
-    and relevant context retrieved from the RAG knowledge base.
+    Generates personalized interview questions using:
+    - Job description
+    - Candidate resume
+    - Relevant context retrieved from the RAG knowledge base
     """
 
     # Retrieve relevant technical knowledge for question generation.
@@ -174,6 +188,7 @@ def generate_interview_questions(
             (
                 "human",
                 "Job description:\n\n{job_description}\n\n"
+                "Candidate resume:\n\n{resume}\n\n"
                 "Relevant technical knowledge from the knowledge base:\n\n"
                 "{rag_context}",
             ),
@@ -186,9 +201,11 @@ def generate_interview_questions(
         {
             "num_questions": num_questions,
             "job_description": job_description_text,
+            "resume": resume_text,
             "rag_context": rag_context,
         }
     )
+    print("DEBUG LLM RAW RESPONSE:", repr(raw))
 
     try:
         cleaned = _strip_code_fences(raw)

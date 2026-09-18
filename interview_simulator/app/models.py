@@ -30,16 +30,42 @@ class SessionStatus(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    full_name: Mapped[str] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=gen_uuid,
+    )
+
+    email: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+
+    full_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
 
     job_descriptions: Mapped[list["JobDescription"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
+
     interview_sessions: Mapped[list["InterviewSession"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    resumes: Mapped[list["Resume"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
 
@@ -48,18 +74,44 @@ class JobDescription(Base):
 
     __tablename__ = "job_descriptions"
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=gen_uuid,
+    )
 
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    company: Mapped[str] = mapped_column(String(255), nullable=True)
-    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    title: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
 
-    user: Mapped["User"] = relationship(back_populates="job_descriptions")
+    company: Mapped[str] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    raw_text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="job_descriptions",
+    )
+
     interview_sessions: Mapped[list["InterviewSession"]] = relationship(
-        back_populates="job_description", cascade="all, delete-orphan"
+        back_populates="job_description",
+        cascade="all, delete-orphan",
     )
 
 
@@ -68,58 +120,171 @@ class InterviewSession(Base):
 
     __tablename__ = "interview_sessions"
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=gen_uuid,
+    )
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
     job_description_id: Mapped[str] = mapped_column(
-        ForeignKey("job_descriptions.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("job_descriptions.id", ondelete="CASCADE"),
+        nullable=False,
     )
 
     status: Mapped[SessionStatus] = mapped_column(
-        Enum(SessionStatus, name="session_status"), default=SessionStatus.pending, nullable=False
+        Enum(SessionStatus, name="session_status"),
+        default=SessionStatus.pending,
+        nullable=False,
     )
-    overall_score: Mapped[float] = mapped_column(Float, nullable=True)
-    overall_summary: Mapped[str] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    overall_score: Mapped[float] = mapped_column(
+        Float,
+        nullable=True,
+    )
 
-    user: Mapped["User"] = relationship(back_populates="interview_sessions")
-    job_description: Mapped["JobDescription"] = relationship(back_populates="interview_sessions")
+    overall_summary: Mapped[str] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="interview_sessions",
+    )
+
+    job_description: Mapped["JobDescription"] = relationship(
+        back_populates="interview_sessions",
+    )
+
     questions: Mapped[list["InterviewQuestion"]] = relationship(
-        back_populates="session", cascade="all, delete-orphan", order_by="InterviewQuestion.order_index"
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="InterviewQuestion.order_index",
     )
 
 
 class InterviewQuestion(Base):
     __tablename__ = "interview_questions"
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    session_id: Mapped[str] = mapped_column(
-        ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=gen_uuid,
     )
 
-    order_index: Mapped[int] = mapped_column(nullable=False)
-    question_text: Mapped[str] = mapped_column(Text, nullable=False)
-    skill_tag: Mapped[str] = mapped_column(String(120), nullable=True)  # e.g. "system design", "python"
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("interview_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
 
-    session: Mapped["InterviewSession"] = relationship(back_populates="questions")
+    order_index: Mapped[int] = mapped_column(
+        nullable=False,
+    )
+
+    question_text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    skill_tag: Mapped[str] = mapped_column(
+        String(120),
+        nullable=True,
+    )  # e.g. "system design", "python"
+
+    session: Mapped["InterviewSession"] = relationship(
+        back_populates="questions",
+    )
+
     answer: Mapped["InterviewAnswer"] = relationship(
-        back_populates="question", uselist=False, cascade="all, delete-orphan"
+        back_populates="question",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
 
 class InterviewAnswer(Base):
     __tablename__ = "interview_answers"
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    question_id: Mapped[str] = mapped_column(
-        ForeignKey("interview_questions.id", ondelete="CASCADE"), unique=True, nullable=False
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=gen_uuid,
     )
 
-    transcript: Mapped[str] = mapped_column(Text, nullable=False)  # from speech-to-text
-    alignment_score: Mapped[float] = mapped_column(Float, nullable=True)  # 0-100
-    feedback: Mapped[str] = mapped_column(Text, nullable=True)
+    question_id: Mapped[str] = mapped_column(
+        ForeignKey("interview_questions.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    transcript: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )  # from speech-to-text
 
-    question: Mapped["InterviewQuestion"] = relationship(back_populates="answer")
+    alignment_score: Mapped[float] = mapped_column(
+        Float,
+        nullable=True,
+    )  # 0-100
+
+    feedback: Mapped[str] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    question: Mapped["InterviewQuestion"] = relationship(
+        back_populates="answer",
+    )
+
+
+class Resume(Base):
+    __tablename__ = "resumes"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        default=gen_uuid,
+    )
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    filename: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    raw_text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="resumes",
+    )

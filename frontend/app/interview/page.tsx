@@ -13,6 +13,7 @@ export default function InterviewSetup() {
   const [company, setCompany] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [numQuestions, setNumQuestions] = useState(5);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -50,7 +51,21 @@ export default function InterviewSetup() {
         }
       );
 
-      // STEP 3: Create the interview session
+      // STEP 3: Upload the resume
+      if (!resumeFile) {
+        throw new Error("Please upload your resume.");
+      }
+
+      const formData = new FormData();
+      formData.append("user_id", user.id);
+      formData.append("file", resumeFile);
+
+     await apiRequest(`/resumes?user_id=${user.id}`, {
+        method: "POST",
+        body: formData,
+      });
+
+      // STEP 4: Create the interview session
       const interviewSession = await apiRequest<{ id: string }>(
         "/interview-sessions",
         {
@@ -120,6 +135,7 @@ export default function InterviewSetup() {
           onSubmit={handleSubmit}
           className="mt-10 space-y-6 rounded-2xl bg-white p-8 shadow-md"
         >
+          {/* Full Name */}
           <div>
             <label className="block font-semibold text-gray-700">
               Full Name
@@ -135,6 +151,7 @@ export default function InterviewSetup() {
             />
           </div>
 
+          {/* Email */}
           <div>
             <label className="block font-semibold text-gray-700">
               Email
@@ -150,6 +167,7 @@ export default function InterviewSetup() {
             />
           </div>
 
+          {/* Job Title */}
           <div>
             <label className="block font-semibold text-gray-700">
               Job Title
@@ -165,6 +183,7 @@ export default function InterviewSetup() {
             />
           </div>
 
+          {/* Company */}
           <div>
             <label className="block font-semibold text-gray-700">
               Company
@@ -180,6 +199,7 @@ export default function InterviewSetup() {
             />
           </div>
 
+          {/* Job Description */}
           <div>
             <label className="block font-semibold text-gray-700">
               Job Description
@@ -195,6 +215,28 @@ export default function InterviewSetup() {
             />
           </div>
 
+          {/* Resume Upload */}
+          <div>
+            <label className="block font-semibold text-gray-700">
+              Resume (PDF)
+            </label>
+
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={(e) =>
+                setResumeFile(e.target.files?.[0] || null)
+              }
+              required
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3"
+            />
+
+            <p className="mt-2 text-sm text-gray-500">
+              Upload your resume in PDF format.
+            </p>
+          </div>
+
+          {/* Number of Questions */}
           <div>
             <label className="block font-semibold text-gray-700">
               Number of Questions
@@ -211,18 +253,22 @@ export default function InterviewSetup() {
             </select>
           </div>
 
+          {/* Error */}
           {error && (
             <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
               {error}
             </p>
           )}
 
+          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-xl bg-blue-600 py-4 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Creating Your Interview..." : "Start My Interview 🤖"}
+            {loading
+              ? "Creating Your Interview..."
+              : "Start My Interview 🤖"}
           </button>
         </form>
       </div>

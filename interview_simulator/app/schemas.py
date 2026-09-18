@@ -41,6 +41,18 @@ class JobDescriptionOut(BaseModel):
     created_at: datetime
 
 
+# ---------- Resumes ----------
+
+class ResumeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    filename: str
+    raw_text: str
+    created_at: datetime
+
+
 # ---------- Interview Sessions ----------
 
 class InterviewSessionCreate(BaseModel):
